@@ -26,26 +26,26 @@ pub struct OutputStreamHandle {
 impl OutputStream {
     /// Returns a new stream & handle using the given output device.
     pub fn try_from_device(
-        device: &cpal::Device,
-    ) -> Result<(Self, OutputStreamHandle), StreamError> {
+        device: cpal::Device,
+    ) -> Result<(Self, OutputStreamHandle, cpal::Device), StreamError> {
         let (mixer, _stream) = device.try_new_output_stream()?;
         _stream.play()?;
         let out = Self { mixer, _stream };
         let handle = OutputStreamHandle {
             mixer: Arc::downgrade(&out.mixer),
         };
-        Ok((out, handle))
+        Ok((out, handle, device))
     }
 
     /// Return a new stream & handle using the default output device.
     ///
     /// On failure will fallback to trying any non-default output devices.
-    pub fn try_default() -> Result<(Self, OutputStreamHandle), StreamError> {
+    pub fn try_default() -> Result<(Self, OutputStreamHandle, cpal::Device), StreamError> {
         let default_device = cpal::default_host()
             .default_output_device()
             .ok_or(StreamError::NoDevice)?;
 
-        let default_stream = Self::try_from_device(&default_device);
+        let default_stream = Self::try_from_device(default_device);
 
         default_stream.or_else(|original_err| {
             // default device didn't work, try other ones
@@ -55,7 +55,7 @@ impl OutputStream {
             };
 
             devices
-                .find_map(|d| Self::try_from_device(&d).ok())
+                .find_map(|d| Self::try_from_device(d).ok())
                 .ok_or(original_err)
         })
     }
